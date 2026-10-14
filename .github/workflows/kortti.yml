@@ -1,0 +1,43 @@
+name: Kortti
+
+on:
+  schedule:
+    - cron: "40 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["kortti/**", ".github/workflows/kortti.yml"]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: kortti
+  cancel-in-progress: true
+
+jobs:
+  kortti:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Luo kortit
+        env:
+          KORTTI_TOKEN: ${{ secrets.KORTTI_TOKEN }}
+        run: node kortti/luo.mjs ulos
+
+      - name: Julkaise kortti haaraan
+        working-directory: ulos
+        run: |
+          git init -q -b kortti
+          git config user.name "pave"
+          git config user.email "173578859+pave699@users.noreply.github.com"
+          git add tumma.svg vaalea.svg
+          git commit -q -m "Update activity card"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" kortti
+
+      - name: Pidä ajastus päällä
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/kortti.yml/enable"
