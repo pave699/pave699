@@ -346,7 +346,7 @@ function kielialue(x0, kielet, t) {
   ${rivit.join("\n  ")}`;
 }
 
-function kehys(leveys, korkeus, kuvaus, t, sisalto) {
+function kehys(leveys, korkeus, kuvaus, t, sisalto, alue = { x: 0, leveys }) {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${leveys}" height="${korkeus}" viewBox="0 0 ${leveys} ${korkeus}" role="img" aria-label="${kuvaus}">
   <title>${kuvaus}</title>
   <style>
@@ -358,7 +358,7 @@ function kehys(leveys, korkeus, kuvaus, t, sisalto) {
     .pieni{font-size:12px}
     .normaali{font-size:13px}
   </style>
-  <rect x="0.5" y="0.5" width="${leveys - 1}" height="${korkeus - 1}" rx="12" fill="${t.tausta}" stroke="${t.reuna}"/>
+  <rect x="${alue.x + 0.5}" y="0.5" width="${alue.leveys - 1}" height="${korkeus - 1}" rx="12" fill="${t.tausta}" stroke="${t.reuna}"/>
   ${sisalto}
 </svg>
 `;
@@ -448,7 +448,42 @@ export function kaupunki(vuosi, t) {
   ${kuut.map((k) => `<text x="${k.x.toFixed(1)}" y="${pohja + 26}" class="i4 pieni" fill="${t.himmea}" text-anchor="middle">${k.nimi}</text>`).join("\n  ")}`);
 }
 
-const IKONIT = JSON.parse(readFileSync(join(HAKEMISTO, "ikonit.json"), "utf8"));
+const { pino: IKONIT, discord: DISCORD } = JSON.parse(readFileSync(join(HAKEMISTO, "ikonit.json"), "utf8"));
+const logo = (nimi) => readFileSync(join(HAKEMISTO, "logot", nimi));
+
+const LINKIT = [
+    {
+        tiedosto: "infinity",
+        nimi: "InfinityRP",
+        ala: "infinityrp.fi",
+        merkki: () => `<image x="18" y="30" width="44" height="30.5" href="data:image/png;base64,${logo("infinity.png").toString("base64")}"/>`,
+    },
+    {
+        tiedosto: "fivespoof",
+        nimi: "FiveSpoof",
+        ala: "fivespoof.com",
+        merkki: (teema) => logo(`fivespoof_${teema}.svg`).toString().replace(/<svg /, '<svg x="25" y="27" width="30" height="40" '),
+    },
+    {
+        tiedosto: "discord",
+        nimi: "Discord",
+        ala: "profile",
+        merkki: () => `<path transform="translate(26 31) scale(1.17)" d="${DISCORD}" fill="#5865F2"/>`,
+    },
+];
+
+export function linkki(kohde, jarjestys, teema, t) {
+    const leveys = 280;
+    const korkeus = 94;
+    const siirto = jarjestys * 4;
+    const nuoli = "M7 7h10v10M7 17 17 7";
+    return kehys(leveys, korkeus, `${kohde.nimi}, ${kohde.ala}`, t, `<g transform="translate(${siirto} 0)">
+  ${kohde.merkki(teema)}
+  <text x="76" y="44" class="p6" font-size="17" fill="${t.teksti}">${kohde.nimi}</text>
+  <text x="76" y="64" class="i4 pieni" fill="${t.himmea}">${kohde.ala}</text>
+  <path transform="translate(236 37) scale(0.75)" d="${nuoli}" fill="none" stroke="${t.himmea}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>`, { x: siirto, leveys: 272 });
+}
 
 export function tekniikat(t) {
     const korkeus = 116;
@@ -468,6 +503,7 @@ export function kirjoita(ulos, vuosi, tilasto) {
         writeFileSync(join(ulos, `${nimi}.svg`), kortti(vuosi, tilasto, teema));
         writeFileSync(join(ulos, `kaupunki_${nimi}.svg`), kaupunki(vuosi, teema));
         writeFileSync(join(ulos, `tekniikat_${nimi}.svg`), tekniikat(teema));
+        LINKIT.forEach((kohde, i) => writeFileSync(join(ulos, `linkki_${kohde.tiedosto}_${nimi}.svg`), linkki(kohde, i, nimi, teema)));
     }
 }
 
