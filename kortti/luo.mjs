@@ -112,26 +112,27 @@ async function graphql(token, query, variables) {
 }
 
 async function haeYksityiset(token) {
-    const nyt = new Date();
-    const vuosiSitten = new Date(nyt.getTime() - 365 * 864e5);
+    const vuosiSitten = new Date(Date.now() - 365 * 864e5).toISOString();
     const { user } = await graphql(
         token,
-        `query($login: String!, $from: DateTime!, $to: DateTime!) {
+        `query($login: String!) {
             user(login: $login) {
                 id
-                repositories(first: 100, ownerAffiliations: [OWNER], isFork: false) {
-                    nodes { languages(first: 20, orderBy: { field: SIZE, direction: DESC }) { edges { size node { name } } } }
-                }
-                contributionsCollection(from: $from, to: $to) {
-                    commitContributionsByRepository(maxRepositories: 100) { repository { name owner { login } } }
+                repositories(first: 100, ownerAffiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER], isFork: false) {
+                    nodes {
+                        name
+                        owner { login }
+                        languages(first: 20, orderBy: { field: SIZE, direction: DESC }) { edges { size node { name } } }
+                    }
                 }
             }
         }`,
-        { login: KAYTTAJA, from: vuosiSitten.toISOString(), to: nyt.toISOString() }
+        { login: KAYTTAJA }
     );
 
     const kielet = new Map();
     for (const repo of user.repositories.nodes) {
+        if (repo.owner.login !== KAYTTAJA) continue;
         for (const { size, node } of repo.languages.edges) {
             if (!EI_KIELIA.has(node.name)) kielet.set(node.name, (kielet.get(node.name) ?? 0) + size);
         }
@@ -139,8 +140,10 @@ async function haeYksityiset(token) {
 
     const tunti = new Intl.DateTimeFormat("en-GB", { timeZone: AIKAVYOHYKE, hour: "numeric", hourCycle: "h23" });
     const tunnit = Array(24).fill(0);
-    for (const { repository } of user.contributionsCollection.commitContributionsByRepository) {
+    let repot = 0;
+    for (const repo of user.repositories.nodes) {
         let after = null;
+        let loytyi = false;
         do {
             const data = await graphql(
                 token,
@@ -154,16 +157,22 @@ async function haeYksityiset(token) {
                         } } }
                     }
                 }`,
-                { owner: repository.owner.login, name: repository.name, id: user.id, since: vuosiSitten.toISOString(), after }
+                { owner: repo.owner.login, name: repo.name, id: user.id, since: vuosiSitten, after }
             );
             const historia = data.repository?.defaultBranchRef?.target?.history;
             if (!historia) break;
-            for (const { authoredDate } of historia.nodes) tunnit[Number(tunti.format(new Date(authoredDate)))]++;
+            for (const { authoredDate } of historia.nodes) {
+                const aika = new Date(authoredDate);
+                if (aika < new Date(vuosiSitten)) continue;
+                tunnit[Number(tunti.format(aika))]++;
+                loytyi = true;
+            }
             after = historia.pageInfo.hasNextPage ? historia.pageInfo.endCursor : null;
         } while (after);
+        if (loytyi) repot++;
     }
 
-    return { kielet: [...kielet].map(([nimi, koko]) => ({ nimi, koko })), tunnit };
+    return { kielet: [...kielet].map(([nimi, koko]) => ({ nimi, koko })), tunnit, repot };
 }
 
 function putket(paivat) {
@@ -394,5 +403,5 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const yksityiset = token ? await haeYksityiset(token) : null;
     const tilasto = laske(vuosi, kaikki, yksityiset);
     kirjoita(process.argv[2] ?? HAKEMISTO, vuosi, tilasto);
-    console.log(`${luku(tilasto.vuosi)} contributions, all time ${luku(tilasto.kaikki)}, streak ${tilasto.putki}, longest ${tilasto.pisin}, token ${token ? "yes" : "no"}`);
+    console.log(`${luku(tilasto.vuosi)} contributions, all time ${luku(tilasto.kaikki)}, streak ${tilasto.putki}, longest ${tilasto.pisin}, commits by hour ${yksityiset ? `${yksityiset.tunnit.reduce((a, b) => a + b, 0)} from ${yksityiset.repot} repos` : "no token"}`);
 }
