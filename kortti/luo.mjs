@@ -461,7 +461,7 @@ const LINKIT = [
     {
         tiedosto: "discord",
         nimi: "Discord",
-        ala: "profile",
+        ala: "pavee69",
         merkki: () => `<path transform="translate(26 31) scale(1.17)" d="${DISCORD}" fill="#5865F2"/>`,
     },
 ];
