@@ -454,7 +454,7 @@ const logo = (nimi) => readFileSync(join(HAKEMISTO, "logot", nimi));
 const LINKIT = [
     {
         tiedosto: "infinity",
-        nimi: "InfinityRP",
+        nimi: "Infinity",
         ala: "infinityrp.fi",
         merkki: () => `<image x="18" y="30" width="44" height="30.5" href="data:image/png;base64,${logo("infinity.png").toString("base64")}"/>`,
     },
