@@ -10,6 +10,8 @@ const KUUT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 const VIIKONPAIVAT = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const EI_KIELIA = new Set(["Markdown", "JSON", "YAML", "TOML", "Text", "CSV", "XML", "INI", "Ignore List", "Git Attributes", "Batchfile"]);
 
+const harmaa = (l) => `hsl(240,5%,${l.toFixed(1)}%)`;
+
 const TEEMAT = {
     tumma: {
         tausta: "#09090b",
@@ -24,6 +26,12 @@ const TEEMAT = {
         kulta: "#fcc300",
         kultaReuna: "#09090b",
         kielet: ["#fafafa", "#a1a1aa", "#71717a", "#52525b", "#3f3f46", "#27272a"],
+        kaupunkiTyhja: "#18181b",
+        kaupunkiKulta: ["#fcc300", "#c99800", "#8f6c00"],
+        kaupunkiSavy: (k) => {
+            const l = 30 + 66 * k;
+            return [harmaa(l), harmaa(l * 0.74), harmaa(l * 0.55)];
+        },
     },
     vaalea: {
         tausta: "#ffffff",
@@ -38,6 +46,12 @@ const TEEMAT = {
         kulta: "#fcc300",
         kultaReuna: "#8a6a00",
         kielet: ["#09090b", "#52525b", "#71717a", "#a1a1aa", "#d4d4d8", "#e4e4e7"],
+        kaupunkiTyhja: "#f4f4f5",
+        kaupunkiKulta: ["#fcc300", "#dcaa00", "#b38b00"],
+        kaupunkiSavy: (k) => {
+            const l = 80 - 70 * k;
+            return [harmaa(l), harmaa(l * 0.85), harmaa(l * 0.7)];
+        },
     },
 };
 
@@ -332,6 +346,24 @@ function kielialue(x0, kielet, t) {
   ${rivit.join("\n  ")}`;
 }
 
+function kehys(leveys, korkeus, kuvaus, t, sisalto) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${leveys}" height="${korkeus}" viewBox="0 0 ${leveys} ${korkeus}" role="img" aria-label="${kuvaus}">
+  <title>${kuvaus}</title>
+  <style>
+    ${fontit()}
+    text{font-family:I,"Segoe UI",system-ui,sans-serif}
+    .p6{font-family:P,"Segoe UI",system-ui,sans-serif;font-weight:600}
+    .i4{font-weight:400}
+    .i5{font-weight:500}
+    .pieni{font-size:12px}
+    .normaali{font-size:13px}
+  </style>
+  <rect x="0.5" y="0.5" width="${leveys - 1}" height="${korkeus - 1}" rx="12" fill="${t.tausta}" stroke="${t.reuna}"/>
+  ${sisalto}
+</svg>
+`;
+}
+
 function fontit() {
     const b64 = (nimi) => readFileSync(join(HAKEMISTO, "fontit", nimi)).toString("base64");
     return `@font-face{font-family:P;font-weight:600;src:url(data:font/woff2;base64,${b64("poppins600.woff2")}) format("woff2")}
@@ -354,24 +386,12 @@ export function kortti(vuosi, s, t) {
     const H = ALAOSA + 140;
     const kuvaus = `${luku(s.vuosi)} contributions in the last year`;
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${kuvaus}">
-  <title>${kuvaus}</title>
-  <style>
-    ${fontit()}
-    text{font-family:I,"Segoe UI",system-ui,sans-serif}
-    .p6{font-family:P,"Segoe UI",system-ui,sans-serif;font-weight:600}
-    .i4{font-weight:400}
-    .i5{font-weight:500}
-    .pieni{font-size:12px}
-    .normaali{font-size:13px}
-  </style>
-  <defs>
+    return kehys(W, H, kuvaus, t, `<defs>
     <linearGradient id="alue" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="${t.alue}" stop-opacity="${t.alueAlku}"/>
       <stop offset="1" stop-color="${t.alue}" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="12" fill="${t.tausta}" stroke="${t.reuna}"/>
   <text x="${X0 - 2}" y="80" class="p6" font-size="46" fill="${t.teksti}">${luku(s.vuosi)}</text>
   <text x="${X0}" y="104" class="i5 normaali" fill="${t.himmea}">contributions in the last year</text>
   ${tilastot
@@ -384,14 +404,71 @@ export function kortti(vuosi, s, t) {
       .join("\n  ")}
   ${kaavio(vuosi, s.viikot, t)}
   <line x1="${X0}" y1="${ALAOSA - 30.5}" x2="${X1}" y2="${ALAOSA - 30.5}" stroke="${t.pohja}"/>
-  ${alaosat.map((f, i) => f(SARAKKEET[i])).join("\n  ")}
-</svg>
-`;
+  ${alaosat.map((f, i) => f(SARAKKEET[i])).join("\n  ")}`);
+}
+
+export function kaupunki(vuosi, t) {
+    const korkeus = 276;
+    const A = 11.6;
+    const w = 8.6;
+    const C = 7;
+    const D = 6;
+    const dC = 6;
+    const dD = 5.2;
+    const KORKEIN = 124;
+    const alku = viikonpaiva(vuosi[0].pv);
+    const sarakkeet = Math.ceil((alku + vuosi.length) / 7);
+    const leveys = (sarakkeet - 1) * A + w + 6 * C + dC;
+    const x0 = (W - leveys) / 2;
+    const pohja = korkeus - 48;
+    const huippu = Math.max(1, ...vuosi.map((p) => p.n));
+    const viimeinen = vuosi.length - 1;
+    const p = (pisteet) => pisteet.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+
+    const solut = vuosi.map((paiva, i) => ({ ...paiva, i, s: Math.floor((alku + i) / 7), r: viikonpaiva(paiva.pv) }));
+    const palat = [...solut]
+        .sort((a, b) => a.r - b.r || a.s - b.s)
+        .map(({ n, i, s, r }) => {
+            const x = x0 + s * A + (6 - r) * C;
+            const y = pohja - (6 - r) * D;
+            const k = Math.sqrt(n / huippu);
+            const h = n > 0 ? 3 + k * KORKEIN : 0;
+            const [yla, etu, sivu] = i === viimeinen ? t.kaupunkiKulta : n > 0 ? t.kaupunkiSavy(k) : [t.kaupunkiTyhja, null, null];
+            const kansi = `<polygon points="${p([[x, y - h], [x + w, y - h], [x + w + dC, y - h - dD], [x + dC, y - h - dD]])}" fill="${yla}"/>`;
+            if (h === 0) return kansi;
+            return `<polygon points="${p([[x + w, y], [x + w, y - h], [x + w + dC, y - h - dD], [x + w + dC, y - dD]])}" fill="${sivu}"/><rect x="${x.toFixed(1)}" y="${(y - h).toFixed(1)}" width="${w}" height="${h.toFixed(1)}" fill="${etu}"/>${kansi}`;
+        });
+
+    const kuut = solut
+        .filter((s) => s.pv.endsWith("-01"))
+        .map((s) => ({ x: x0 + s.s * A + 3 * C + w / 2, nimi: KUUT[Number(s.pv.slice(5, 7)) - 1] }))
+        .filter((k) => k.x > x0 + 6 && k.x < x0 + leveys - 20);
+
+    return kehys(W, korkeus, "Contributions per day in the last year", t, `${palat.join("")}
+  ${kuut.map((k) => `<text x="${k.x.toFixed(1)}" y="${pohja + 26}" class="i4 pieni" fill="${t.himmea}" text-anchor="middle">${k.nimi}</text>`).join("\n  ")}`);
+}
+
+const IKONIT = JSON.parse(readFileSync(join(HAKEMISTO, "ikonit.json"), "utf8"));
+
+export function tekniikat(t) {
+    const korkeus = 116;
+    const vali = (W - 32) / IKONIT.length;
+    const koko = 26;
+    const rivit = IKONIT.map((ikoni, i) => {
+        const keski = 16 + vali * (i + 0.5);
+        return `<path transform="translate(${(keski - koko / 2).toFixed(1)} 28) scale(${koko / 24})" d="${ikoni.d}" fill="${t.viiva}"/>
+  <text x="${keski.toFixed(1)}" y="82" class="i5" font-size="11" fill="${t.himmea}" text-anchor="middle">${ikoni.nimi}</text>`;
+    });
+    return kehys(W, korkeus, `Stack: ${IKONIT.map((i) => i.nimi).join(", ")}`, t, rivit.join("\n  "));
 }
 
 export function kirjoita(ulos, vuosi, tilasto) {
     mkdirSync(ulos, { recursive: true });
-    for (const [nimi, teema] of Object.entries(TEEMAT)) writeFileSync(join(ulos, `${nimi}.svg`), kortti(vuosi, tilasto, teema));
+    for (const [nimi, teema] of Object.entries(TEEMAT)) {
+        writeFileSync(join(ulos, `${nimi}.svg`), kortti(vuosi, tilasto, teema));
+        writeFileSync(join(ulos, `kaupunki_${nimi}.svg`), kaupunki(vuosi, teema));
+        writeFileSync(join(ulos, `tekniikat_${nimi}.svg`), tekniikat(teema));
+    }
 }
 
 export { haeKalenteri, haeKaikki };
