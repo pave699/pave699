@@ -459,12 +459,6 @@ const LINKIT = [
         merkki: () => `<image x="18" y="30" width="44" height="30.5" href="data:image/png;base64,${logo("infinity.png").toString("base64")}"/>`,
     },
     {
-        tiedosto: "fivespoof",
-        nimi: "FiveSpoof",
-        ala: "fivespoof.com",
-        merkki: (teema) => logo(`fivespoof_${teema}.svg`).toString().replace(/<svg /, '<svg x="25" y="27" width="30" height="40" '),
-    },
-    {
         tiedosto: "discord",
         nimi: "Discord",
         ala: "profile",
@@ -473,16 +467,18 @@ const LINKIT = [
 ];
 
 export function linkki(kohde, jarjestys, teema, t) {
-    const leveys = 280;
+    const vali = 12;
+    const leveys = W / LINKIT.length;
+    const kortti = (W - vali * (LINKIT.length - 1)) / LINKIT.length;
     const korkeus = 94;
-    const siirto = jarjestys * 4;
+    const siirto = jarjestys * (kortti + vali - leveys);
     const nuoli = "M7 7h10v10M7 17 17 7";
     return kehys(leveys, korkeus, `${kohde.nimi}, ${kohde.ala}`, t, `<g transform="translate(${siirto} 0)">
   ${kohde.merkki(teema)}
   <text x="76" y="44" class="p6" font-size="17" fill="${t.teksti}">${kohde.nimi}</text>
   <text x="76" y="64" class="i4 pieni" fill="${t.himmea}">${kohde.ala}</text>
-  <path transform="translate(236 37) scale(0.75)" d="${nuoli}" fill="none" stroke="${t.himmea}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>`, { x: siirto, leveys: 272 });
+  <path transform="translate(${kortti - 36} 37) scale(0.75)" d="${nuoli}" fill="none" stroke="${t.himmea}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>`, { x: siirto, leveys: kortti });
 }
 
 export function tekniikat(t) {
