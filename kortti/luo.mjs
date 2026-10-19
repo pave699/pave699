@@ -26,12 +26,14 @@ const TEEMAT = {
         kulta: "#fcc300",
         kultaReuna: "#09090b",
         kielet: ["#fafafa", "#a1a1aa", "#71717a", "#52525b", "#3f3f46", "#27272a"],
-        kaupunkiTyhja: "#18181b",
+        kaupunkiTyhja: "#1c1c20",
         kaupunkiKulta: ["#fcc300", "#c99800", "#8f6c00"],
-        kaupunkiSavy: (k) => {
-            const l = 30 + 66 * k;
-            return [harmaa(l), harmaa(l * 0.74), harmaa(l * 0.55)];
-        },
+        kaupunkiTasot: [
+            [40, 28, 20],
+            [56, 40, 28],
+            [74, 54, 38],
+            [94, 70, 50],
+        ].map((taso) => taso.map(harmaa)),
     },
     vaalea: {
         tausta: "#ffffff",
@@ -46,12 +48,14 @@ const TEEMAT = {
         kulta: "#fcc300",
         kultaReuna: "#8a6a00",
         kielet: ["#09090b", "#52525b", "#71717a", "#a1a1aa", "#d4d4d8", "#e4e4e7"],
-        kaupunkiTyhja: "#f4f4f5",
+        kaupunkiTyhja: "#ededf0",
         kaupunkiKulta: ["#fcc300", "#dcaa00", "#b38b00"],
-        kaupunkiSavy: (k) => {
-            const l = 80 - 70 * k;
-            return [harmaa(l), harmaa(l * 0.85), harmaa(l * 0.7)];
-        },
+        kaupunkiTasot: [
+            [80, 68, 58],
+            [62, 48, 38],
+            [42, 30, 22],
+            [22, 12, 6],
+        ].map((taso) => taso.map(harmaa)),
     },
 };
 
@@ -408,44 +412,52 @@ export function kortti(vuosi, s, t) {
 }
 
 export function kaupunki(vuosi, t) {
-    const korkeus = 276;
-    const A = 11.6;
-    const w = 8.6;
-    const C = 7;
-    const D = 6;
-    const dC = 6;
-    const dD = 5.2;
-    const KORKEIN = 124;
+    const korkeus = 300;
+    const A = 13.2;
+    const w = 10;
+    const C = 5.5;
+    const D = 7.5;
+    const dC = 4.4;
+    const dD = 6;
+    const KORKEIN = 170;
     const alku = viikonpaiva(vuosi[0].pv);
     const sarakkeet = Math.ceil((alku + vuosi.length) / 7);
     const leveys = (sarakkeet - 1) * A + w + 6 * C + dC;
     const x0 = (W - leveys) / 2;
-    const pohja = korkeus - 48;
+    const pohja = korkeus - 46;
     const huippu = Math.max(1, ...vuosi.map((p) => p.n));
-    const viimeinen = vuosi.length - 1;
+    const aktiiviset = vuosi.map((p) => p.n).filter((n) => n > 0).sort((a, b) => a - b);
+    const rajat = [0.25, 0.5, 0.75].map((q) => aktiiviset[Math.floor(q * (aktiiviset.length - 1))] ?? 0);
     const p = (pisteet) => pisteet.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+    const kansi = (x, y, h) => p([[x, y - h], [x + w, y - h], [x + w + dC, y - h - dD], [x + dC, y - h - dD]]);
 
-    const solut = vuosi.map((paiva, i) => ({ ...paiva, i, s: Math.floor((alku + i) / 7), r: viikonpaiva(paiva.pv) }));
-    const palat = [...solut]
+    const solut = Array.from({ length: sarakkeet * 7 }, (_, j) => {
+        const i = j - alku;
+        const s = Math.floor(j / 7);
+        const r = j % 7;
+        return { s, r, x: x0 + s * A + (6 - r) * C, y: pohja - (6 - r) * D, n: vuosi[i]?.n ?? 0, pv: vuosi[i]?.pv, tanaan: i === vuosi.length - 1 };
+    });
+
+    const lattia = solut.filter((c) => c.n === 0 && !c.tanaan).map((c) => `<polygon points="${kansi(c.x, c.y, 0)}"/>`);
+    const pilarit = solut
+        .filter((c) => c.n > 0 || c.tanaan)
         .sort((a, b) => a.r - b.r || a.s - b.s)
-        .map(({ n, i, s, r }) => {
-            const x = x0 + s * A + (6 - r) * C;
-            const y = pohja - (6 - r) * D;
-            const k = Math.sqrt(n / huippu);
-            const h = n > 0 ? 3 + k * KORKEIN : 0;
-            const [yla, etu, sivu] = i === viimeinen ? t.kaupunkiKulta : n > 0 ? t.kaupunkiSavy(k) : [t.kaupunkiTyhja, null, null];
-            const kansi = `<polygon points="${p([[x, y - h], [x + w, y - h], [x + w + dC, y - h - dD], [x + dC, y - h - dD]])}" fill="${yla}"/>`;
-            if (h === 0) return kansi;
-            return `<polygon points="${p([[x + w, y], [x + w, y - h], [x + w + dC, y - h - dD], [x + w + dC, y - dD]])}" fill="${sivu}"/><rect x="${x.toFixed(1)}" y="${(y - h).toFixed(1)}" width="${w}" height="${h.toFixed(1)}" fill="${etu}"/>${kansi}`;
+        .map(({ x, y, n, tanaan }) => {
+            const h = n > 0 ? 3 + Math.sqrt(n / huippu) * KORKEIN : 0;
+            const [yla, etu, sivu] = tanaan ? t.kaupunkiKulta : t.kaupunkiTasot[rajat.filter((raja) => n > raja).length];
+            const ulko = p([[x, y], [x, y - h], [x + dC, y - h - dD], [x + w + dC, y - h - dD], [x + w + dC, y - dD], [x + w, y]]);
+            return `<polygon class="ulko" points="${ulko}" fill="${sivu}"/><rect x="${x.toFixed(1)}" y="${(y - h).toFixed(1)}" width="${w}" height="${h.toFixed(1)}" fill="${etu}"/><polygon points="${kansi(x, y, h)}" fill="${yla}"/>`;
         });
 
     const kuut = solut
-        .filter((s) => s.pv.endsWith("-01"))
-        .map((s) => ({ x: x0 + s.s * A + 3 * C + w / 2, nimi: KUUT[Number(s.pv.slice(5, 7)) - 1] }))
-        .filter((k) => k.x > x0 + 6 && k.x < x0 + leveys - 20);
+        .filter((c) => c.pv?.endsWith("-01"))
+        .map((c) => ({ x: x0 + c.s * A, nimi: KUUT[Number(c.pv.slice(5, 7)) - 1] }))
+        .filter((k) => k.x > x0 + 6 && k.x < x0 + leveys - 30);
 
-    return kehys(W, korkeus, "Contributions per day in the last year", t, `${palat.join("")}
-  ${kuut.map((k) => `<text x="${k.x.toFixed(1)}" y="${pohja + 26}" class="i4 pieni" fill="${t.himmea}" text-anchor="middle">${k.nimi}</text>`).join("\n  ")}`);
+    return kehys(W, korkeus, "Contributions per day in the last year", t, `<style>.ulko{stroke:${t.tausta};stroke-width:2;stroke-linejoin:round;paint-order:stroke}</style>
+  <g fill="${t.kaupunkiTyhja}">${lattia.join("")}</g>
+  ${pilarit.join("")}
+  ${kuut.map((k) => `<text x="${k.x.toFixed(1)}" y="${pohja + 24}" class="i4 pieni" fill="${t.himmea}">${k.nimi}</text>`).join("\n  ")}`);
 }
 
 const { pino: IKONIT, discord: DISCORD } = JSON.parse(readFileSync(join(HAKEMISTO, "ikonit.json"), "utf8"));
